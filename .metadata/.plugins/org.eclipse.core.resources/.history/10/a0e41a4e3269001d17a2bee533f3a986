@@ -1,0 +1,231 @@
+package com.stedikupujuci.stedisa.controller;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import com.stedikupujuci.stedisa.model.Category;
+import com.stedikupujuci.stedisa.model.Product;
+import com.stedikupujuci.stedisa.model.Subcategory;
+import com.stedikupujuci.stedisa.repository.CategoryRepository;
+import com.stedikupujuci.stedisa.service.CategoryService;
+import com.stedikupujuci.stedisa.service.ProductService;
+import com.stedikupujuci.stedisa.service.SubcategoryService;
+
+@RestController
+@RequestMapping(path = "/stedisa/import/")
+public class ImportDataController {
+
+	private final String apiURL = "https://cenoteka.rs";
+
+	private final String CATHEGORY_NAME_REGEX = "/kategorija/[a-zA-Z-]+";
+	private final String PRODUCT_REGEX = "data-product-id=\"[0-9]+";
+
+	@Autowired
+	private CategoryService categoryService;
+	@Autowired
+	private SubcategoryService subcategoryService;
+	@Autowired
+	private ProductService productService;
+
+	@Autowired
+	public ImportDataController() {
+
+	}
+
+	@GetMapping(path = "categories")
+	public @ResponseBody ResponseEntity<Object> importCategoriesFromWebsite() {
+		RestTemplate restTemplate = new RestTemplate();
+		String response = restTemplate.getForObject(apiURL, String.class);
+
+		Pattern pat = Pattern.compile(CATHEGORY_NAME_REGEX);
+		Matcher mat = pat.matcher(response);
+
+		List<Category> uniqueCategories = new ArrayList<>();
+		while (mat.find()) {
+			Category category = new Category();
+			String url = mat.group();
+			category.setName(createNameFromURL(url));
+			category.setUrl(url);
+			if (!uniqueCategories.contains(category)) {
+				uniqueCategories.add(category);
+			}
+		}
+		StringBuilder responseBody = new StringBuilder();
+		for (Category category : uniqueCategories) {
+			if (categoryService.findByUrl(category.getUrl()).isEmpty()) {
+				categoryService.saveCategory(category);
+			}
+			responseBody.append(category + "\n");
+		}
+
+		return ResponseEntity.status(HttpStatus.OK).body(responseBody);
+	}
+
+	@GetMapping(path = "subcategories")
+	public @ResponseBody ResponseEntity<Object> importSubcategoriesFromWebsite() {
+		RestTemplate restTemplate = new RestTemplate();
+		List<Category> cetegories = categoryService.fetchCategoryList();
+
+		List<Subcategory> uniqueSubcategories = new ArrayList<>();
+		for (Category category : cetegories) {
+			String response = restTemplate.getForObject(apiURL + category.getUrl(), String.class);
+			Pattern pat = Pattern.compile(
+					category.getUrl().replace("kategorija", "proizvodi").replace("akcije", "akcija") + "/[a-zA-Z-]+");
+			Matcher mat = pat.matcher(response);
+
+			while (mat.find()) {
+				Subcategory subcategory = new Subcategory();
+				subcategory.setCategory(category);
+
+				String url = mat.group();
+				subcategory.setName(createNameFromURL(url));
+				subcategory.setUrl(url);
+				if (!uniqueSubcategories.contains(subcategory)) {
+					uniqueSubcategories.add(subcategory);
+				}
+
+				System.out.println(mat.group());
+			}
+
+			StringBuilder responseBody = new StringBuilder();
+			for (Subcategory subcategory : uniqueSubcategories) {
+				if (subcategoryService.findByUrl(subcategory.getUrl()).isEmpty()) {
+					subcategoryService.saveSubcategory(subcategory);
+				}
+				responseBody.append(category + "\n");
+			}
+
+		}
+
+		return ResponseEntity.status(HttpStatus.OK).body("");
+	}
+
+	@GetMapping(path = "products")
+	public @ResponseBody ResponseEntity<Object> importProductsFromWebsite() {
+
+		List<Subcategory> subcetegories = subcategoryService.fetchSubcategoryList();
+
+		List<String> products = new ArrayList<>();
+
+		importProducts(subcetegories, products);
+		System.out.println("************GOTOV IMPORT***********");
+		return ResponseEntity.status(HttpStatus.OK).body("");
+	}
+
+	private void importProducts(List<Subcategory> subcetegories, List<String> products) {
+//		for (Subcategory subcategory : subcetegories) {
+//			
+//			if (subcategory.getUrl().contains("akcija")) {
+//				continue;
+//			}
+//			int page = 1;
+//			List<String> ids = new ArrayList<>();
+//			for (int i = 0; i < 10000; i++) {
+//				List<String> idsPerPage = getProductIdsFromSubategoryAndPage(subcategory, page);
+//				if (idsPerPage.size() > 1) {
+//					ids.addAll(idsPerPage);
+//					page++;
+//				} else {
+//					products.addAll(ids);
+//					break;
+//				}
+//			}
+//
+//		}
+
+		for (Product product : productService.fetchProductList()) {
+
+			insertProduct(product);
+
+		}
+	}
+
+	private void insertProduct(Product product) {
+		RestTemplate restTemplate = new RestTemplate();
+		String response = restTemplate.getForObject(apiURL + "/artikal/" + product.getExternalId(), String.class);
+
+		// product.setExternalId(String.valueOf(product.getExternalId()));
+		// product.setName(getProductNameFromResponseString(response));
+		// product.setImageURL(getProducImageURLFromResposnseString(response,product));
+
+		Subcategory subcategory;
+		try {
+			subcategory = subcategoryService.findByName(getProductCategoryNameFromResponseString(response)).get(0);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		product.setSubcategory(subcategory);
+		productService.updateProduct(product, product.getId());
+	}
+
+	private String getProductNameFromResponseString(String response) {
+		Pattern paternName = Pattern.compile("<title>[\\s\\S]+- Cenoteka<\\/title>");
+		Matcher matName = paternName.matcher(response);
+		while (matName.find()) {
+			return matName.group().replace("<title>", "").replace("</title>", "").replace(" - Cenoteka", "");
+		}
+		return "";
+	}
+
+	private String getProducImageURLFromResposnseString(String response, Product product) {
+		// preparing regex string
+		String paternImageURLWithProductName = product.getName();
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\(", "\\\\(");
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\)", "\\\\)");
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\.", "\\\\.");
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\+", "\\\\+");
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\%", "\\\\%");
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\,", "\\\\,");
+		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\*", "\\\\*");
+		Pattern paternImageURL = Pattern
+				.compile("<img src=\"\\/assets\\/images\\/articles[\\s\\S]+alt=\"" + paternImageURLWithProductName);
+		Matcher matImageURL = paternImageURL.matcher(response);
+		while (matImageURL.find()) {
+			return matImageURL.group().split("\"")[1];
+		}
+		return "";
+	}
+
+	private String getProductCategoryNameFromResponseString(String response) {
+		Pattern paternName = Pattern.compile("subcategory: '[\\s\\S]+'\\}\\)\\;");
+		Matcher matName = paternName.matcher(response);
+		String categoryName = "";
+		while (matName.find()) {
+			categoryName = matName.group().split("'")[1];
+		}
+		return categoryName;
+	}
+
+	private List<String> getProductIdsFromSubategoryAndPage(Subcategory subcategory, int page) {
+		RestTemplate restTemplate = new RestTemplate();
+		String response = restTemplate.getForObject(apiURL + subcategory.getUrl() + "?page=" + String.valueOf(page),
+				String.class);
+		Pattern pat = Pattern.compile(PRODUCT_REGEX);
+		Matcher mat = pat.matcher(response);
+		List<String> idjeviproizvoda = new ArrayList<>();
+		while (mat.find()) {
+			idjeviproizvoda.add(mat.group().replace("data-product-id=\"", ""));
+		}
+		return idjeviproizvoda;
+	}
+
+	private String createNameFromURL(String url) {
+		String nameFromURL = url.split("/")[3];
+		String nameWithoutDashes = nameFromURL.replaceAll("-", " ");
+		String capitalizedName = StringUtils.capitalize(nameWithoutDashes);
+		return capitalizedName;
+	}
+
+}
