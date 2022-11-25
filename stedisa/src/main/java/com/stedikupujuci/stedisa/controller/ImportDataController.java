@@ -23,7 +23,6 @@ import org.springframework.web.client.RestTemplate;
 import com.stedikupujuci.stedisa.model.Category;
 import com.stedikupujuci.stedisa.model.Product;
 import com.stedikupujuci.stedisa.model.Subcategory;
-import com.stedikupujuci.stedisa.repository.CategoryRepository;
 import com.stedikupujuci.stedisa.service.CategoryService;
 import com.stedikupujuci.stedisa.service.ProductService;
 import com.stedikupujuci.stedisa.service.SubcategoryService;
@@ -51,12 +50,23 @@ public class ImportDataController {
 
 	@GetMapping(path = "categories")
 	public @ResponseBody ResponseEntity<Object> importCategoriesFromWebsite() {
+		List<Category> uniqueCategories = getUniqueCategories();
+		StringBuilder responseBody = new StringBuilder();
+		for (Category category : uniqueCategories) {
+			if (categoryService.findByUrl(category.getUrl()).isEmpty()) {
+				categoryService.saveCategory(category);
+			}
+			responseBody.append(category + "\n");
+		}
+		return ResponseEntity.status(HttpStatus.OK).body(responseBody);
+	}
+
+	private List<Category> getUniqueCategories() {
 		RestTemplate restTemplate = new RestTemplate();
 		String response = restTemplate.getForObject(apiURL, String.class);
 
 		Pattern pat = Pattern.compile(CATHEGORY_NAME_REGEX);
 		Matcher mat = pat.matcher(response);
-
 		List<Category> uniqueCategories = new ArrayList<>();
 		while (mat.find()) {
 			Category category = new Category();
@@ -67,23 +77,28 @@ public class ImportDataController {
 				uniqueCategories.add(category);
 			}
 		}
-		StringBuilder responseBody = new StringBuilder();
-		for (Category category : uniqueCategories) {
-			if (categoryService.findByUrl(category.getUrl()).isEmpty()) {
-				categoryService.saveCategory(category);
-			}
-			responseBody.append(category + "\n");
-		}
-
-		return ResponseEntity.status(HttpStatus.OK).body(responseBody);
+		return uniqueCategories;
 	}
 
+	
 	@GetMapping(path = "subcategories")
 	public @ResponseBody ResponseEntity<Object> importSubcategoriesFromWebsite() {
+
+		List<Subcategory> uniqueSubcategories = getUniqueSubcategories();
+		for (Subcategory subcategory : uniqueSubcategories) {
+			if (subcategoryService.findByUrl(subcategory.getUrl()).isEmpty()) {
+				subcategoryService.saveSubcategory(subcategory);
+			}
+		}
+
+		return ResponseEntity.status(HttpStatus.OK).body("");
+	}
+
+	private List<Subcategory> getUniqueSubcategories() {
+		List<Subcategory> uniqueSubcategories = new ArrayList<>();
 		RestTemplate restTemplate = new RestTemplate();
 		List<Category> cetegories = categoryService.fetchCategoryList();
 
-		List<Subcategory> uniqueSubcategories = new ArrayList<>();
 		for (Category category : cetegories) {
 			String response = restTemplate.getForObject(apiURL + category.getUrl(), String.class);
 			Pattern pat = Pattern.compile(
@@ -100,21 +115,10 @@ public class ImportDataController {
 				if (!uniqueSubcategories.contains(subcategory)) {
 					uniqueSubcategories.add(subcategory);
 				}
-
 				System.out.println(mat.group());
 			}
-
-			StringBuilder responseBody = new StringBuilder();
-			for (Subcategory subcategory : uniqueSubcategories) {
-				if (subcategoryService.findByUrl(subcategory.getUrl()).isEmpty()) {
-					subcategoryService.saveSubcategory(subcategory);
-				}
-				responseBody.append(category + "\n");
-			}
-
 		}
-
-		return ResponseEntity.status(HttpStatus.OK).body("");
+		return uniqueSubcategories;
 	}
 
 	@GetMapping(path = "products")
@@ -161,7 +165,7 @@ public class ImportDataController {
 			doc = Jsoup.connect("https://cenoteka.rs/proizvodi/mlecni-proizvodi/jogurt?page=3").get();
 			System.out.println(doc.title());
 			Elements elements = doc.select("div.article-row");
-			int count= 1;
+			int count = 1;
 			for (Element price : elements) {
 				if (price.attr("data-product-id").equals("$ID"))
 					continue;

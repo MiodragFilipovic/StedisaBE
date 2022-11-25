@@ -1,0 +1,45 @@
+-- public.categories definition
+
+-- Drop table
+
+-- DROP TABLE public.categories;
+
+CREATE TABLE public.categories (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY,
+	"name" varchar NULL,
+	url varchar NOT NULL,
+	CONSTRAINT categories_pk PRIMARY KEY (id)
+);
+
+
+-- public.subcategories definition
+
+-- Drop table
+
+-- DROP TABLE public.subcategories;
+
+CREATE TABLE public.subcategories (
+	"name" varchar NULL,
+	url varchar NULL,
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY,
+	category int8 NOT NULL,
+	CONSTRAINT subcategories_pk PRIMARY KEY (id),
+	CONSTRAINT subcategories_fk FOREIGN KEY (category) REFERENCES public.categories(id) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
+
+
+-- public.products definition
+
+-- Drop table
+
+-- DROP TABLE public.products;
+
+CREATE TABLE public.products (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY,
+	external_id varchar NULL,
+	"name" varchar NULL,
+	imageurl varchar NULL,
+	subcategory int8 NULL,
+	CONSTRAINT products_pk PRIMARY KEY (id),
+	CONSTRAINT products_fk FOREIGN KEY (subcategory) REFERENCES public.subcategories(id)
+);
