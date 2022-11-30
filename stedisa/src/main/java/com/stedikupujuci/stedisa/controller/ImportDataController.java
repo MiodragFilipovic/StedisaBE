@@ -13,6 +13,7 @@ import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StopWatch;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -80,7 +81,6 @@ public class ImportDataController {
 		return uniqueCategories;
 	}
 
-	
 	@GetMapping(path = "subcategories")
 	public @ResponseBody ResponseEntity<Object> importSubcategoriesFromWebsite() {
 
@@ -90,7 +90,6 @@ public class ImportDataController {
 				subcategoryService.saveSubcategory(subcategory);
 			}
 		}
-
 		return ResponseEntity.status(HttpStatus.OK).body("");
 	}
 
@@ -124,80 +123,113 @@ public class ImportDataController {
 	@GetMapping(path = "products")
 	public @ResponseBody ResponseEntity<Object> importProductsFromWebsite() {
 
-		List<Subcategory> subcetegories = subcategoryService.fetchSubcategoryList();
+		List<String> products = getUniqueProducts();
 
-		List<String> products = new ArrayList<>();
-
-		importProducts(subcetegories, products);
-		System.out.println("************GOTOV IMPORT***********");
+		for (String productId : products) {
+			if (productService.findByExternalId(productId).isEmpty()) {
+				Product product = new Product();
+				product.setExternalId(productId);
+				insertProduct(product);
+			}
+		}
 		return ResponseEntity.status(HttpStatus.OK).body("");
 	}
 
-	private void importProducts(List<Subcategory> subcetegories, List<String> products) {
-//		for (Subcategory subcategory : subcetegories) {
-//			
-//			if (subcategory.getUrl().contains("akcija")) {
-//				continue;
-//			}
-//			int page = 1;
-//			List<String> ids = new ArrayList<>();
-//			for (int i = 0; i < 10000; i++) {
-//				List<String> idsPerPage = getProductIdsFromSubategoryAndPage(subcategory, page);
-//				if (idsPerPage.size() > 1) {
-//					ids.addAll(idsPerPage);
-//					page++;
-//				} else {
-//					products.addAll(ids);
-//					break;
-//				}
-//			}
-//
-//		}
-
-//		for (Product product : productService.fetchProductList()) {
-//			if (product.getSubcategory() == null) {
-//				insertProduct(product);
-//			}
-//		}
-
-		Document doc;
-		try {
-			doc = Jsoup.connect("https://cenoteka.rs/proizvodi/mlecni-proizvodi/jogurt?page=3").get();
-			System.out.println(doc.title());
-			Elements elements = doc.select("div.article-row");
-			int count = 1;
-			for (Element price : elements) {
-				if (price.attr("data-product-id").equals("$ID"))
-					continue;
-				System.out.println(price.attr("data-product-id"));
-				for (Element element : price.getElementsByClass("article-price")) {
-					try {
-						Element prices = element.getElementsByClass("price").get(0);
-						System.out.println(prices.text());
-						Element shop = element.getElementsByClass("shop").get(0);
-						System.out.println(shop.getElementsByTag("img").get(0).attr("alt"));
-						System.out.println("**** count ****" + count);
-						count++;
-					} catch (Exception e) {
-//						e.printStackTrace();
-					}
+	private List<String> getUniqueProducts() {
+		List<Subcategory> subcetegories = subcategoryService.fetchSubcategoryList();
+		List<String> productsIDs = new ArrayList<>();
+		for (Subcategory subcategory : subcetegories) {
+			// if subcategory is "on sale" continue
+			if (subcategory.getUrl().contains("akcija")) {
+				continue;
+			}
+			int page = 1;
+			List<String> productsIDsForCategory = new ArrayList<>();
+			for (int i = 0; i < 10000; i++) {
+				List<String> idsPerPage = getProductIdsFromSubategoryAndPage(subcategory, page);
+				if (idsPerPage.size() > 1) {
+					productsIDsForCategory.addAll(idsPerPage);
+					page++;
+				} else {
+					productsIDs.addAll(productsIDsForCategory);
+					break;
 				}
 			}
 
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
+		return productsIDs;
+	}
 
+	@GetMapping(path = "updatePrices")
+	public @ResponseBody ResponseEntity<Object> updatePrices() {
+		StopWatch stopwatch = new StopWatch();
+		stopwatch.start();
+
+		int productCount = 0;
+		try {
+			for (Subcategory subcategory : subcategoryService.fetchSubcategoryList()) {
+				// if subcategory is "on sale" continue
+				if (subcategory.getUrl().contains("akcija")) {
+					continue;
+				}
+				System.out.println(subcategory.getName());
+				int page = 1;
+				for (int i = 1; i < 10000; i++) {
+					System.out.println(apiURL + subcategory.getUrl() + "?page=" + i);
+					Document doc = Jsoup.connect(apiURL + subcategory.getUrl() + "?page=" + i).get();
+					Elements articles = doc.select("div.article-row");
+					if (articles.size() < 3) {
+						break;
+					}
+					int ordinalNumber = 1;
+					for (Element article : articles) {
+						if (article.attr("data-product-id").equals("") || article.attr("data-product-id").equals("$ID")
+								|| !article.attr("data-group-parent").equals(""))
+							continue;
+						productCount++;
+						Element articleName = article.getElementsByClass("article-name").get(0);
+						System.out.println();
+						System.out.print(articleName.text() + " ");
+						System.out.println("RB: " + ordinalNumber + " Page: " + i);
+						Elements articlePrices = article.getElementsByClass("article-price");
+						for (Element element : articlePrices) {
+							try {
+								Elements prices = element.getElementsByClass("price");
+								if (!prices.isEmpty()) {
+
+									System.out.print(" (" + prices.get(0).text());
+								}
+								Elements shops = element.getElementsByClass("shop");
+								if (!shops.isEmpty()) {
+									System.out.print(
+											" " + shops.get(0).getElementsByTag("img").get(0).attr("alt") + ") ");
+
+								}
+							} catch (Exception e) {
+								continue;
+							}
+						}
+						ordinalNumber++;
+					}
+				}
+			}
+		} catch (Exception e1) {
+			e1.printStackTrace();
+		}
+		System.out.println("ZAVRSEN UPDATE CENA");
+		System.out.println("Ukupno prozivoda: "+ productCount);
+		stopwatch.stop(); // optional
+		System.out.println(stopwatch.getTotalTimeSeconds());
+		return ResponseEntity.status(HttpStatus.OK).body("");
 	}
 
 	private void insertProduct(Product product) {
 		RestTemplate restTemplate = new RestTemplate();
 		String response = restTemplate.getForObject(apiURL + "/artikal/" + product.getExternalId(), String.class);
 
-		// product.setExternalId(String.valueOf(product.getExternalId()));
-		// product.setName(getProductNameFromResponseString(response));
-		// product.setImageURL(getProducImageURLFromResposnseString(response,product));
+		product.setExternalId(String.valueOf(product.getExternalId()));
+		product.setName(getProductNameFromResponseString(response));
+		product.setImageURL(getProducImageURLFromResposnseString(response, product));
 
 		Subcategory subcategory;
 		try {
