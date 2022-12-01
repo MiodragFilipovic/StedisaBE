@@ -1,8 +1,10 @@
 package com.stedikupujuci.stedisa.controller;
 
-import java.io.IOException;
+import java.text.NumberFormat;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,10 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
 import com.stedikupujuci.stedisa.model.Category;
+import com.stedikupujuci.stedisa.model.PriceHistory;
 import com.stedikupujuci.stedisa.model.Product;
+import com.stedikupujuci.stedisa.model.Shop;
 import com.stedikupujuci.stedisa.model.Subcategory;
 import com.stedikupujuci.stedisa.service.CategoryService;
+import com.stedikupujuci.stedisa.service.PriceHistoryService;
 import com.stedikupujuci.stedisa.service.ProductService;
+import com.stedikupujuci.stedisa.service.ShopService;
 import com.stedikupujuci.stedisa.service.SubcategoryService;
 
 @RestController
@@ -43,6 +49,10 @@ public class ImportDataController {
 	private SubcategoryService subcategoryService;
 	@Autowired
 	private ProductService productService;
+	@Autowired
+	private ShopService shopService;
+	@Autowired
+	private PriceHistoryService priceHistoryService;
 
 	@Autowired
 	public ImportDataController() {
@@ -129,7 +139,7 @@ public class ImportDataController {
 			if (productService.findByExternalId(productId).isEmpty()) {
 				Product product = new Product();
 				product.setExternalId(productId);
-				insertProduct(product);
+				updateProduct(product);
 			}
 		}
 		return ResponseEntity.status(HttpStatus.OK).body("");
@@ -164,49 +174,71 @@ public class ImportDataController {
 	public @ResponseBody ResponseEntity<Object> updatePrices() {
 		StopWatch stopwatch = new StopWatch();
 		stopwatch.start();
+		List<String> nonexistentProducts = new ArrayList<>();
 
 		int productCount = 0;
 		try {
+			// iterate over subcategories
 			for (Subcategory subcategory : subcategoryService.fetchSubcategoryList()) {
 				// if subcategory is "on sale" continue
 				if (subcategory.getUrl().contains("akcija")) {
 					continue;
 				}
 				System.out.println(subcategory.getName());
-				int page = 1;
 				for (int i = 1; i < 10000; i++) {
-					System.out.println(apiURL + subcategory.getUrl() + "?page=" + i);
 					Document doc = Jsoup.connect(apiURL + subcategory.getUrl() + "?page=" + i).get();
 					Elements articles = doc.select("div.article-row");
 					if (articles.size() < 3) {
 						break;
 					}
+					System.out.println();
+					System.out.print(subcategory.getUrl() + "?page=" + i);
 					int ordinalNumber = 1;
 					for (Element article : articles) {
-						if (article.attr("data-product-id").equals("") || article.attr("data-product-id").equals("$ID")
+						String articleExternalId = article.attr("data-product-id");
+						if (articleExternalId.equals("") || articleExternalId.equals("$ID")
 								|| !article.attr("data-group-parent").equals(""))
 							continue;
+
+						Product product = null;
+						try {
+							product = productService.findByExternalId(article.attr("data-product-id")).get(0);
+						} catch (Exception e1) {
+							nonexistentProducts.add(articleExternalId);
+							product = new Product();
+							product.setExternalId(articleExternalId);
+							product = insertNewProduct(product);
+						}
 						productCount++;
-						Element articleName = article.getElementsByClass("article-name").get(0);
 						System.out.println();
-						System.out.print(articleName.text() + " ");
-						System.out.println("RB: " + ordinalNumber + " Page: " + i);
+						System.out.println(String.format("Naziv proizvoda: %-80s [Rb: %3s Page: %3s]", product.getName(),
+								ordinalNumber, i));
+						;
 						Elements articlePrices = article.getElementsByClass("article-price");
-						for (Element element : articlePrices) {
+						for (Element articlePriceByShop : articlePrices) {
 							try {
-								Elements prices = element.getElementsByClass("price");
-								if (!prices.isEmpty()) {
-
-									System.out.print(" (" + prices.get(0).text());
+								Elements prices = articlePriceByShop.getElementsByClass("price");
+								Elements shops = articlePriceByShop.getElementsByClass("shop");
+								if (!prices.isEmpty() && !shops.isEmpty()) {
+									Shop shop = shopService
+											.findByName(shops.get(0).getElementsByTag("img").get(0).attr("alt")).get(0);
+									PriceHistory priceHistory = new PriceHistory();
+									priceHistory.setDate(LocalDateTime.now());
+									priceHistory.setProduct(product);
+									priceHistory.setShop(shop);
+									NumberFormat format = NumberFormat.getInstance(Locale.FRANCE);
+									String priceString = prices.get(0).ownText();
+									if (priceString.equals("-")) {
+										priceHistory.setPrice(0);
+									} else {
+										Number number = format.parse(priceString);
+										priceHistory.setPrice(number.doubleValue());
+									}
+									priceHistoryService.savePriceHistory(priceHistory);
 								}
-								Elements shops = element.getElementsByClass("shop");
-								if (!shops.isEmpty()) {
-									System.out.print(
-											" " + shops.get(0).getElementsByTag("img").get(0).attr("alt") + ") ");
 
-								}
 							} catch (Exception e) {
-								continue;
+								e.printStackTrace();
 							}
 						}
 						ordinalNumber++;
@@ -216,14 +248,21 @@ public class ImportDataController {
 		} catch (Exception e1) {
 			e1.printStackTrace();
 		}
+		stopwatch.stop();
 		System.out.println("ZAVRSEN UPDATE CENA");
-		System.out.println("Ukupno prozivoda: "+ productCount);
-		stopwatch.stop(); // optional
-		System.out.println(stopwatch.getTotalTimeSeconds());
+		System.out.println("Ukupno prozivoda: " + productCount);
+		System.out.println("Ukupno trajanje: ");
+		System.out.println(stopwatch.getTotalTimeSeconds() + " sekundi");
+
+		System.out.println("Proizvodi kojih nema u bazi proizvoda");
+		for (String nonExistentProduct : nonexistentProducts) {
+			System.out.println(nonExistentProduct);
+		}
+
 		return ResponseEntity.status(HttpStatus.OK).body("");
 	}
 
-	private void insertProduct(Product product) {
+	private void updateProduct(Product product) {
 		RestTemplate restTemplate = new RestTemplate();
 		String response = restTemplate.getForObject(apiURL + "/artikal/" + product.getExternalId(), String.class);
 
@@ -240,6 +279,25 @@ public class ImportDataController {
 			e.printStackTrace();
 		}
 		productService.updateProduct(product, product.getId());
+	}
+
+	private Product insertNewProduct(Product product) {
+		RestTemplate restTemplate = new RestTemplate();
+		String response = restTemplate.getForObject(apiURL + "/artikal/" + product.getExternalId(), String.class);
+
+		product.setExternalId(String.valueOf(product.getExternalId()));
+		product.setName(getProductNameFromResponseString(response));
+		product.setImageURL(getProducImageURLFromResposnseString(response, product));
+
+		Subcategory subcategory;
+		try {
+			subcategory = subcategoryService.findByName(getProductCategoryNameFromResponseString(response)).get(0);
+			product.setSubcategory(subcategory);
+		} catch (Exception e) {
+			System.out.println("greska");
+			e.printStackTrace();
+		}
+		return productService.saveProduct(product);
 	}
 
 	private String getProductNameFromResponseString(String response) {

@@ -11,14 +11,13 @@ import com.stedikupujuci.stedisa.repository.SubcategoryRepository;
 
 @Service
 public class SubcategoryServiceImpl implements SubcategoryService {
-	
+
 	@Autowired
-    private SubcategoryRepository subcategoryRepository;
+	private SubcategoryRepository subcategoryRepository;
 
 	@Override
 	public List<Subcategory> fetchSubcategoryList() {
-	    return (List<Subcategory>)
-	            subcategoryRepository.findAll();
+		return (List<Subcategory>) subcategoryRepository.findAll();
 	}
 
 	@Override
@@ -28,30 +27,22 @@ public class SubcategoryServiceImpl implements SubcategoryService {
 
 	@Override
 	public Subcategory saveSubcategory(Subcategory kateogrija) {
-		 return subcategoryRepository.save(kateogrija);
+		return subcategoryRepository.save(kateogrija);
 	}
 
 	@Override
 	public Subcategory updateSubcategory(Subcategory subcategory, Long id) {
-		Subcategory katDB
-         = subcategoryRepository.findById(id)
-               .get();
+		Subcategory katDB = subcategoryRepository.findById(id).get();
 
-     if (Objects.nonNull(subcategory.getName())
-         && !"".equalsIgnoreCase(
-        		 subcategory.getName())) {
-    	 katDB.setName(subcategory.getName());
-     }
+		if (Objects.nonNull(subcategory.getName()) && !"".equalsIgnoreCase(subcategory.getName())) {
+			katDB.setName(subcategory.getName());
+		}
 
-     if (Objects.nonNull(
-    		 subcategory.getUrl())
-         && !"".equalsIgnoreCase(
-        		 subcategory.getUrl())) {
-    	 katDB.setUrl(subcategory.getUrl());
-     }
+		if (Objects.nonNull(subcategory.getUrl()) && !"".equalsIgnoreCase(subcategory.getUrl())) {
+			katDB.setUrl(subcategory.getUrl());
+		}
 
-
-     return subcategoryRepository.save(katDB);
+		return subcategoryRepository.save(katDB);
 	}
 
 	@Override
