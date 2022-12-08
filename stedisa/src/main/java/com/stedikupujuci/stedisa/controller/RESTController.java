@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -20,6 +21,7 @@ import org.springframework.util.StopWatch;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -69,25 +71,31 @@ public class RESTController {
 		return ResponseEntity.status(HttpStatus.OK).body(categories);
 	}
 
+	@GetMapping(path = "categories/{id}")
+	@CrossOrigin(origins = "http://localhost:3000")
+	public @ResponseBody ResponseEntity<Object> getCategoryById(@PathVariable Long id) {
+		Optional<Category> categories = categoryService.findById(id);
+		return ResponseEntity.status(HttpStatus.OK).body(categories);
+	}
+
+	@GetMapping(path = "categories/{id}/subcategories")
+	@CrossOrigin(origins = "http://localhost:3000")
+	public @ResponseBody ResponseEntity<Object> getSubcategoriesByCategoryId(@PathVariable Long id) {
+		List<Subcategory> subcategories = subcategoryService.findByCategory(categoryService.findById(id).get());
+		return ResponseEntity.status(HttpStatus.OK).body(subcategories);
+	}
+	
 	@GetMapping(path = "subcategories")
 	@CrossOrigin(origins = "http://localhost:3000")
 	public @ResponseBody ResponseEntity<Object> getSubcategories() {
 		List<Subcategory> subcategories = subcategoryService.fetchSubcategoryList();
 		return ResponseEntity.status(HttpStatus.OK).body(subcategories);
 	}
-	
-//	@GetMapping(path = "products")
-//	public @ResponseBody ResponseEntity<Object> getProducts() {
-//		List<Product> products = productService.fetchProductList();
-//		return ResponseEntity.status(HttpStatus.OK).body(products);
-//	}
-	
+
 	@GetMapping(path = "products")
 	@CrossOrigin(origins = "http://localhost:3000")
-	public @ResponseBody ResponseEntity<Object> getProductsBySubcategory(@RequestParam(value ="categoryId") Long id) {
-		
+	public @ResponseBody ResponseEntity<Object> getProductsBySubcategory(@RequestParam(value = "subcategoryId") Long id) {
 		List<Product> productsBySubategory = productService.findBySubcategory(subcategoryService.findById(id).get());
-		
 		return ResponseEntity.status(HttpStatus.OK).body(productsBySubategory);
 	}
 

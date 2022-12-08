@@ -1,6 +1,7 @@
 package com.stedikupujuci.stedisa.service;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,8 @@ public interface CategoryService {
 	
 	List<Category> findByUrl(String url);
 
+	Optional<Category> findById(Long id);
+	
 	Category updateCategory(Category category, Long idd);
 
 	void deleteCategoryById(Long id);

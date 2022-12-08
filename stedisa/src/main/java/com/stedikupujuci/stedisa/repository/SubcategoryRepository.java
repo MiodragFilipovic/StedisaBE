@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import com.stedikupujuci.stedisa.model.Category;
 import com.stedikupujuci.stedisa.model.Subcategory;
 
 @Repository
@@ -16,5 +17,7 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
 	List<Subcategory> findByUrl(String url);
 	
 	Optional<Subcategory> findById(Long id);
+	
+	List<Subcategory> findByCategory(Category category);
 
 }

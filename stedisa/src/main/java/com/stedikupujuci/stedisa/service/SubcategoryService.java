@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.stedikupujuci.stedisa.model.Category;
 import com.stedikupujuci.stedisa.model.Subcategory;
 
 @Service
@@ -20,7 +21,9 @@ public interface SubcategoryService {
 
 	Optional<Subcategory> findById(Long id);
 	
-	Subcategory updateSubcategory(Subcategory category, Long idd);
+	List<Subcategory> findByCategory(Category category);
+	
+	Subcategory updateSubcategory(Subcategory subcategory, Long idd);
 
 	void deleteSubcategoryById(Long id);
 	

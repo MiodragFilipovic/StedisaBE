@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.stedikupujuci.stedisa.model.Category;
 import com.stedikupujuci.stedisa.model.Subcategory;
 import com.stedikupujuci.stedisa.repository.SubcategoryRepository;
 
@@ -60,5 +61,11 @@ public class SubcategoryServiceImpl implements SubcategoryService {
 	public Optional<Subcategory> findById(Long id) {
 		return subcategoryRepository.findById(id);
 	}
+
+	@Override
+	public List<Subcategory> findByCategory(Category category) {
+		return subcategoryRepository.findByCategory(category);
+	}
+
 
 }
