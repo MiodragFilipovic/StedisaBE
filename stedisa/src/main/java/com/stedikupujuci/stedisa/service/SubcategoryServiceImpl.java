@@ -2,6 +2,7 @@ package com.stedikupujuci.stedisa.service;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -53,6 +54,11 @@ public class SubcategoryServiceImpl implements SubcategoryService {
 	@Override
 	public List<Subcategory> findByUrl(String url) {
 		return subcategoryRepository.findByUrl(url);
+	}
+
+	@Override
+	public Optional<Subcategory> findById(Long id) {
+		return subcategoryRepository.findById(id);
 	}
 
 }

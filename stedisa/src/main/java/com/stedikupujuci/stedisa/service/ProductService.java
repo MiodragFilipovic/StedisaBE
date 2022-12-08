@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.stedikupujuci.stedisa.model.Product;
+import com.stedikupujuci.stedisa.model.Subcategory;
 
 @Service
 public interface ProductService {
@@ -15,6 +16,8 @@ public interface ProductService {
 
 	List<Product> findByName(String name);
 
+	List<Product> findBySubcategory(Subcategory subcategory);
+	
 	List<Product> findByExternalId(String externalId);
 
 	Product updateProduct(Product product, Long idd);

@@ -1,12 +1,14 @@
 package com.stedikupujuci.stedisa.service;
 
 import java.util.List;
+import java.util.Locale.Category;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.stedikupujuci.stedisa.model.Product;
+import com.stedikupujuci.stedisa.model.Subcategory;
 import com.stedikupujuci.stedisa.repository.ProductRepository;
 
 @Service
@@ -53,6 +55,11 @@ public class ProductServiceImpl implements ProductService {
 	@Override
 	public List<Product> findByExternalId(String externalId) {
 		return productRepository.findByExternalId(externalId);
+	}
+
+	@Override
+	public List<Product> findBySubcategory(Subcategory subcategory) {
+		return productRepository.findBySubcategory(subcategory);
 	}
 
 }
