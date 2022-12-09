@@ -92,9 +92,9 @@ public class RESTController {
 		return ResponseEntity.status(HttpStatus.OK).body(subcategories);
 	}
 
-	@GetMapping(path = "products")
+	@GetMapping(path = "subcategories/{id}/products")
 	@CrossOrigin(origins = "http://localhost:3000")
-	public @ResponseBody ResponseEntity<Object> getProductsBySubcategory(@RequestParam(value = "subcategoryId") Long id) {
+	public @ResponseBody ResponseEntity<Object> getProductsBySubcategory(@PathVariable Long id) {
 		List<Product> productsBySubategory = productService.findBySubcategory(subcategoryService.findById(id).get());
 		return ResponseEntity.status(HttpStatus.OK).body(productsBySubategory);
 	}
