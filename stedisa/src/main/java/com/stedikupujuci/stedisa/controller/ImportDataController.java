@@ -182,7 +182,9 @@ public class ImportDataController {
 				for (int i = 1; i < 10000; i++) {
 					Document doc = Jsoup.connect(apiURL + subcategory.getUrl() + "?page=" + i).get();
 					// getting all products from page
+					Elements products = doc.select("div#products");
 					Elements articles = doc.select("div.article-row");
+					Elements sections = products.select("section");
 					// if articles.size < 3, that means that there are no more products, break and
 					// continue with next category.
 					if (articles.size() < 3) {
