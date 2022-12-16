@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,11 +30,13 @@ import com.stedikupujuci.stedisa.model.PriceHistory;
 import com.stedikupujuci.stedisa.model.Product;
 import com.stedikupujuci.stedisa.model.Shop;
 import com.stedikupujuci.stedisa.model.Subcategory;
+import com.stedikupujuci.stedisa.model.SubcategoryType;
 import com.stedikupujuci.stedisa.service.CategoryService;
 import com.stedikupujuci.stedisa.service.PriceHistoryService;
 import com.stedikupujuci.stedisa.service.ProductService;
 import com.stedikupujuci.stedisa.service.ShopService;
 import com.stedikupujuci.stedisa.service.SubcategoryService;
+import com.stedikupujuci.stedisa.service.SubcategoryTypeService;
 
 @RestController
 @RequestMapping(path = "/stedisa/import/")
@@ -48,6 +51,8 @@ public class ImportDataController {
 	private CategoryService categoryService;
 	@Autowired
 	private SubcategoryService subcategoryService;
+	@Autowired
+	private SubcategoryTypeService subcategoryTypeService;
 	@Autowired
 	private ProductService productService;
 	@Autowired
@@ -111,7 +116,8 @@ public class ImportDataController {
 
 		for (Category category : cetegories) {
 			String response = restTemplate.getForObject(apiURL + category.getUrl(), String.class);
-			Pattern pat = Pattern.compile(category.getUrl().replace("kategorija", "proizvodi").replace("akcije", "akcija") + "/[a-zA-Z-]+");
+			Pattern pat = Pattern.compile(
+					category.getUrl().replace("kategorija", "proizvodi").replace("akcije", "akcija") + "/[a-zA-Z-]+");
 			Matcher mat = pat.matcher(response);
 
 			while (mat.find()) {
@@ -183,22 +189,24 @@ public class ImportDataController {
 					Document doc = Jsoup.connect(apiURL + subcategory.getUrl() + "?page=" + i).get();
 					// getting all products from page
 					Elements products = doc.select("div#products");
-					Elements articles = doc.select("div.article-row");
 					Elements sections = products.select("section");
-					// if articles.size < 3, that means that there are no more products, break and
-					// continue with next category.
-					if (articles.size() < 3) {
-						break;
-					}
-					for (Element article : articles) {
-						String articleExternalId = article.attr("data-product-id");
-						// skipping elements that are not "product"
-						if (articleExternalId.equals("") || articleExternalId.equals("$ID") || !article.attr("data-group-parent").equals(""))
-							continue;
+					for (Element section : sections) {
+						String subcategoryTypeName = section.select("div.section-title").get(0).select("h4.text-left")
+								.get(0).text();
+						SubcategoryType subcategoryType = getSubcategoryType(subcategoryTypeName, subcategory);
+						Elements articles = section.select("div.article-row");
+						for (Element article : articles) {
+							String articleExternalId = article.attr("data-product-id");
 
-						Product product = getProductByExternalId(articleExternalId);
-						Elements articlePrices = article.getElementsByClass("article-price");
-						saveArticlePrices(product, articlePrices);
+							Product product = getProductByExternalId(articleExternalId);
+							if (product.getSubcategoryType()==null) {
+								product.setSubcategoryType(subcategoryType);
+								productService.updateProduct(product, product.getId());
+							}
+							Elements articlePrices = article.getElementsByClass("article-price");
+							saveArticlePrices(product, articlePrices);
+						}
+
 					}
 				}
 			}
@@ -207,6 +215,19 @@ public class ImportDataController {
 		}
 
 		return ResponseEntity.status(HttpStatus.OK).body("");
+	}
+
+	private SubcategoryType getSubcategoryType(String subcategoryTypeName, Subcategory subcategory) {
+		SubcategoryType subcategoryType = null;
+		try {
+			subcategoryType = subcategoryTypeService.findByName(subcategoryTypeName).get();
+			return subcategoryType;
+		} catch (NoSuchElementException e) {
+			subcategoryType = new SubcategoryType();
+			subcategoryType.setName(subcategoryTypeName);
+			subcategoryType.setSubcategory(subcategory);
+			return subcategoryTypeService.saveSubcategoryType(subcategoryType);
+		}
 	}
 
 	private void saveArticlePrices(Product product, Elements articlePrices) {
@@ -311,7 +332,8 @@ public class ImportDataController {
 		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\%", "\\\\%");
 		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\,", "\\\\,");
 		paternImageURLWithProductName = paternImageURLWithProductName.replaceAll("\\*", "\\\\*");
-		Pattern paternImageURL = Pattern.compile("<img src=\"\\/assets\\/images\\/articles[\\s\\S]+alt=\"" + paternImageURLWithProductName);
+		Pattern paternImageURL = Pattern
+				.compile("<img src=\"\\/assets\\/images\\/articles[\\s\\S]+alt=\"" + paternImageURLWithProductName);
 		Matcher matImageURL = paternImageURL.matcher(response);
 		while (matImageURL.find()) {
 			return matImageURL.group().split("\"")[1];
@@ -331,7 +353,8 @@ public class ImportDataController {
 
 	private List<String> getProductIdsFromSubategoryAndPage(Subcategory subcategory, int page) {
 		RestTemplate restTemplate = new RestTemplate();
-		String response = restTemplate.getForObject(apiURL + subcategory.getUrl() + "?page=" + String.valueOf(page), String.class);
+		String response = restTemplate.getForObject(apiURL + subcategory.getUrl() + "?page=" + String.valueOf(page),
+				String.class);
 		Pattern pat = Pattern.compile(PRODUCT_REGEX);
 		Matcher mat = pat.matcher(response);
 		List<String> idjeviproizvoda = new ArrayList<>();

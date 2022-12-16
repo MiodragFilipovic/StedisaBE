@@ -29,6 +29,10 @@ public class Product {
     @JoinColumn(name="subcategory", nullable=false)
 	private Subcategory subcategory;
 	
+	@ManyToOne
+    @JoinColumn(name="subcategoryType", nullable=false)
+	private SubcategoryType subcategoryType;
+	
 	@OneToMany(mappedBy = "product")
     Set<PriceHistory> priceHistory;
 
@@ -54,6 +58,14 @@ public class Product {
 
 	public void setExternalId(String externalId) {
 		this.externalId = externalId;
+	}
+
+	public SubcategoryType getSubcategoryType() {
+		return subcategoryType;
+	}
+
+	public void setSubcategoryType(SubcategoryType subcategoryType) {
+		this.subcategoryType = subcategoryType;
 	}
 
 	public String getName() {

@@ -1,11 +1,14 @@
 package com.stedikupujuci.stedisa.model;
 
+import java.util.Set;
+
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 @Entity
@@ -20,8 +23,16 @@ public class Subcategory {
     @JoinColumn(name="category", nullable=false)
 	private Category category;
 	
-//	@OneToMany(mappedBy="product")
-//    private Set<Product> products;
+	@OneToMany(mappedBy="subcategory")
+    private Set<SubcategoryType> subcategoryTypes;
+
+	public Set<SubcategoryType> getSubcategoryTypes() {
+		return subcategoryTypes;
+	}
+
+	public void setSubcategoryTypes(Set<SubcategoryType> subcategoryTypes) {
+		this.subcategoryTypes = subcategoryTypes;
+	}
 
 	private String name;
 	
